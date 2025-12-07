@@ -1,0 +1,72 @@
+// elementwise_multiply.c
+void main(tensor input0, tensor input1, tensor output)
+{
+    const int depth   = 0;
+    const int width   = 1;
+    const int height  = 2;
+    const int batch   = 3;
+    const int fifthDim = 4;
+
+    const int5 index_space_start = get_index_space_offset();
+    const int5 index_space_end   = get_index_space_size() + index_space_start;
+
+    int5 coords = {0, 0, 0, 0, 0};
+
+    // DEPTH - process in 64-element chunks
+    const int depthStep  = 64;
+    const int depthStart = index_space_start[depth] * depthStep;
+    const int depthEnd   = index_space_end[depth] * depthStep;
+
+    // WIDTH
+    const int widthStart = index_space_start[width];
+    const int widthEnd   = index_space_end[width];
+
+    // HEIGHT
+    const int heightStart = index_space_start[height];
+    const int heightEnd   = index_space_end[height];
+
+    // BATCH
+    const int batchStart = index_space_start[batch];
+    const int batchEnd   = index_space_end[batch];
+
+    // FIFTH DIM
+    const int fifthDimStart = index_space_start[fifthDim];
+    const int fifthDimEnd   = index_space_end[fifthDim];
+
+    float64 a, b, result;
+
+    for (int d = depthStart; d < depthEnd; d += depthStep)
+    {
+        coords[depth] = d;
+
+        for (int f = fifthDimStart; f < fifthDimEnd; f++)
+        {
+            coords[fifthDim] = f;
+
+            for (int batch_idx = batchStart; batch_idx < batchEnd; batch_idx++)
+            {
+                coords[batch] = batch_idx;
+
+                for (int h = heightStart; h < heightEnd; h++)
+                {
+                    coords[height] = h;
+
+                    for (int w = widthStart; w < widthEnd; w++)
+                    {
+                        coords[width] = w;
+
+                        // Load 64 elements from each input
+                        a = v_f32_ld_tnsr_b(coords, input0);
+                        b = v_f32_ld_tnsr_b(coords, input1);
+
+                        // Multiply element-wise
+                        result = v_f32_mul_b(a, b);
+
+                        // Store result
+                        v_f32_st_tnsr(coords, output, result);
+                    }
+                }
+            }
+        }
+    }
+}

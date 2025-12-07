@@ -1,0 +1,70 @@
+// kernels/gaudi2/relu_backward.c
+void main(tensor grad_output, tensor input, tensor grad_input)
+{
+    const int depth   = 0;
+    const int width   = 1;
+    const int height  = 2;
+    const int batch   = 3;
+    const int fifthDim = 4;
+
+    const int5 index_space_start = get_index_space_offset();
+    const int5 index_space_end   = get_index_space_size() + index_space_start;
+
+    int5 coords = {0, 0, 0, 0, 0};
+
+    const int depthStep  = 64;
+    const int depthStart = index_space_start[depth] * depthStep;
+    const int depthEnd   = index_space_end[depth] * depthStep;
+
+    const int widthStart = index_space_start[width];
+    const int widthEnd   = index_space_end[width];
+
+    const int heightStart = index_space_start[height];
+    const int heightEnd   = index_space_end[height];
+
+    const int batchStart = index_space_start[batch];
+    const int batchEnd   = index_space_end[batch];
+
+    const int fifthDimStart = index_space_start[fifthDim];
+    const int fifthDimEnd   = index_space_end[fifthDim];
+
+    float64 grad_out, inp, grad_in;
+    float64 zero = 0.0f;
+
+    for (int d = depthStart; d < depthEnd; d += depthStep)
+    {
+        coords[depth] = d;
+
+        for (int f = fifthDimStart; f < fifthDimEnd; f++)
+        {
+            coords[fifthDim] = f;
+
+            for (int b = batchStart; b < batchEnd; b++)
+            {
+                coords[batch] = b;
+
+                for (int h = heightStart; h < heightEnd; h++)
+                {
+                    coords[height] = h;
+
+                    for (int w = widthStart; w < widthEnd; w++)
+                    {
+                        coords[width] = w;
+
+                        // Load gradient from next layer
+                        grad_out = v_f32_ld_tnsr_b(coords, grad_output);
+                        
+                        // Load original input
+                        inp = v_f32_ld_tnsr_b(coords, input);
+
+                        // Gradient: grad_out if input > 0, else 0
+                        grad_in = v_f32_sel_grt_f32_b(inp, zero, grad_out, zero);
+
+                        // Store gradient
+                        v_f32_st_tnsr(coords, grad_input, grad_in);
+                    }
+                }
+            }
+        }
+    }
+}

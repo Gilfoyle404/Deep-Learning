@@ -1,0 +1,63 @@
+// kernels/gaudi2/linear_backward.c
+void main(tensor grad_output, tensor input, tensor weight, 
+          tensor grad_input, tensor grad_weight, tensor grad_bias)
+{
+    const int depth   = 0;
+    const int width   = 1;
+    const int height  = 2;
+
+    const int5 index_space_start = get_index_space_offset();
+    const int5 index_space_end   = get_index_space_size() + index_space_start;
+
+    int5 coords = {0, 0, 0, 0, 0};
+
+    const int depthStep  = 64;
+    const int depthStart = index_space_start[depth] * depthStep;
+    const int depthEnd   = index_space_end[depth] * depthStep;
+
+    const int widthStart = index_space_start[width];
+    const int widthEnd   = index_space_end[width];
+
+    const int heightStart = index_space_start[height];
+    const int heightEnd   = index_space_end[height];
+
+    float64 grad_out, inp, w, grad_in, grad_w, grad_b;
+
+    // Compute grad_input = grad_output @ weight
+    // Compute grad_weight = grad_output^T @ input
+    // Compute grad_bias = sum(grad_output, dim=0)
+
+    for (int d = depthStart; d < depthEnd; d += depthStep)
+    {
+        coords[depth] = d;
+
+        for (int h = heightStart; h < heightEnd; h++)
+        {
+            coords[height] = h;
+
+            for (int w_idx = widthStart; w_idx < widthEnd; w_idx++)
+            {
+                coords[width] = w_idx;
+
+                // Load values
+                grad_out = v_f32_ld_tnsr_b(coords, grad_output);
+                inp = v_f32_ld_tnsr_b(coords, input);
+                w = v_f32_ld_tnsr_b(coords, weight);
+
+                // grad_input = grad_output @ weight
+                grad_in = v_f32_mul_b(grad_out, w);
+
+                // grad_weight = grad_output * input
+                grad_w = v_f32_mul_b(grad_out, inp);
+
+                // grad_bias = grad_output
+                grad_b = grad_out;
+
+                // Store gradients
+                v_f32_st_tnsr(coords, grad_input, grad_in);
+                v_f32_st_tnsr(coords, grad_weight, grad_w);
+                v_f32_st_tnsr(coords, grad_bias, grad_b);
+            }
+        }
+    }
+}

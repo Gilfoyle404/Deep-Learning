@@ -1,0 +1,71 @@
+// kernels/gaudi2/linear_forward.c
+void main(tensor input, tensor weight, tensor bias, tensor output)
+{
+    const int depth   = 0;
+    const int width   = 1;
+    const int height  = 2;
+
+    const int5 index_space_start = get_index_space_offset();
+    const int5 index_space_end   = get_index_space_size() + index_space_start;
+
+    int5 in_coords = {0, 0, 0, 0, 0};
+    int5 w_coords = {0, 0, 0, 0, 0};
+    int5 out_coords = {0, 0, 0, 0, 0};
+    int5 b_coords = {0, 0, 0, 0, 0};
+
+    const int depthStep  = 64;
+    const int depthStart = index_space_start[depth] * depthStep;
+    const int depthEnd   = index_space_end[depth] * depthStep;
+
+    const int widthStart = index_space_start[width];
+    const int widthEnd   = index_space_end[width];
+
+    const int heightStart = index_space_start[height];
+    const int heightEnd   = index_space_end[height];
+
+    float64 in_val, w_val, b_val, acc, result;
+
+    // For each batch sample
+    for (int h = heightStart; h < heightEnd; h++)
+    {
+        out_coords[height] = h;
+        in_coords[height] = h;
+
+        // For each output feature
+        for (int out_f = widthStart; out_f < widthEnd; out_f++)
+        {
+            out_coords[width] = out_f;
+            w_coords[height] = out_f;
+
+            // Load bias
+            b_coords[width] = out_f;
+            b_val = v_f32_ld_tnsr_b(b_coords, bias);
+
+            // Accumulate over input features
+            for (int in_f = depthStart; in_f < depthEnd; in_f += depthStep)
+            {
+                in_coords[depth] = in_f;
+                w_coords[depth] = in_f;
+
+                // Load input and weight
+                in_val = v_f32_ld_tnsr_b(in_coords, input);
+                w_val = v_f32_ld_tnsr_b(w_coords, weight);
+
+                // Multiply and accumulate
+                if (in_f == depthStart)
+                {
+                    acc = v_f32_mul_b(in_val, w_val);
+                    acc = v_f32_add_b(acc, b_val);
+                }
+                else
+                {
+                    result = v_f32_mul_b(in_val, w_val);
+                    acc = v_f32_add_b(acc, result);
+                }
+            }
+
+            // Store output
+            v_f32_st_tnsr(out_coords, output, acc);
+        }
+    }
+}
