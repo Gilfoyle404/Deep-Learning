@@ -1,5 +1,5 @@
-// kernels/gaudi2/relu_backward.c
-void main(tensor grad_output, tensor input, tensor grad_input)
+// kernels/gaudi2/elementwise_multiply.c
+void main(tensor input0, tensor input1, tensor output)
 {
     const int depth   = 0;
     const int width   = 1;
@@ -12,24 +12,28 @@ void main(tensor grad_output, tensor input, tensor grad_input)
 
     int5 coords = {0, 0, 0, 0, 0};
 
+    // DEPTH - process in 64-element chunks
     const int depthStep  = 64;
     const int depthStart = index_space_start[depth] * depthStep;
     const int depthEnd   = index_space_end[depth] * depthStep;
 
+    // WIDTH
     const int widthStart = index_space_start[width];
     const int widthEnd   = index_space_end[width];
 
+    // HEIGHT
     const int heightStart = index_space_start[height];
     const int heightEnd   = index_space_end[height];
 
+    // BATCH
     const int batchStart = index_space_start[batch];
     const int batchEnd   = index_space_end[batch];
 
+    // FIFTH DIM
     const int fifthDimStart = index_space_start[fifthDim];
     const int fifthDimEnd   = index_space_end[fifthDim];
 
-    float64 grad_out, inp, grad_in;
-    float64 zero = 0.0f;
+    float64 a, b, result;
 
     for (int d = depthStart; d < depthEnd; d += depthStep)
     {
@@ -39,9 +43,9 @@ void main(tensor grad_output, tensor input, tensor grad_input)
         {
             coords[fifthDim] = f;
 
-            for (int b = batchStart; b < batchEnd; b++)
+            for (int batch_idx = batchStart; batch_idx < batchEnd; batch_idx++)
             {
-                coords[batch] = b;
+                coords[batch] = batch_idx;
 
                 for (int h = heightStart; h < heightEnd; h++)
                 {
@@ -51,17 +55,15 @@ void main(tensor grad_output, tensor input, tensor grad_input)
                     {
                         coords[width] = w;
 
-                        // Load gradient from next layer
-                        grad_out = v_f32_ld_tnsr_b(coords, grad_output);
-                        
-                        // Load original input
-                        inp = v_f32_ld_tnsr_b(coords, input);
+                        // Load 64 elements from each input
+                        a = v_f32_ld_tnsr_b(coords, input0);
+                        b = v_f32_ld_tnsr_b(coords, input1);
 
-                        // Gradient: grad_out if input > 0, else 0
-                        grad_in = v_f32_sel_grt_f32_b(inp, zero, grad_out, zero);
+                        // Multiply element-wise
+                        result = v_f32_mul_b(a, b);
 
-                        // Store gradient
-                        v_f32_st_tnsr(coords, grad_input, grad_in);
+                        // Store result
+                        v_f32_st_tnsr(coords, output, result);
                     }
                 }
             }

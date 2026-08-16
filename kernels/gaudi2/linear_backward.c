@@ -1,5 +1,5 @@
 // kernels/gaudi2/linear_backward.c
-void main(tensor grad_output, tensor input, tensor weight, 
+void main(tensor grad_output, tensor input, tensor weight,
           tensor grad_input, tensor grad_weight, tensor grad_bias)
 {
     const int depth   = 0;

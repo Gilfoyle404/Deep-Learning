@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Datasets & trained weights
+data/
+*.pth
+
+# Kernel build artifacts (Habana TPC-C / Custom Kernel toolchain)
+build/
+*.o
+*.so
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
